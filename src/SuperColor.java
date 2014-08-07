@@ -11,6 +11,14 @@ public class SuperColor {
 	
 	Boolean isAlive = true;
 	
+	public SuperColor(int red, int green, int blue, int xx, int yy) {
+		r = red;
+		g = green;
+		b = blue;
+		x = xx;
+		y = yy;
+	}
+	
 	public SuperColor(int red, int green, int blue) {
 		r = red;
 		g = green;
@@ -18,7 +26,6 @@ public class SuperColor {
 	}
 	
 	public void destruct() {
-	
 		isAlive = false;
 		
 		if(whereIAm != null) {			

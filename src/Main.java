@@ -30,28 +30,29 @@ public class Main {
 	int sourceColors = 0;
 	SuperColor[] colorSource;
 	
+	BufferedImage sourceImage;
+	
 	public Main(String[] args) {
 		
-		if(args.length > 1) {
-			width = Integer.parseInt(args[0]);
-			height = Integer.parseInt(args[1]);
-		}
-	
-		if(args.length > 4) {
-			REDBITDEPTH = Integer.parseInt(args[2]);
-			GREENBITDEPTH = Integer.parseInt(args[3]);
-			BLUEBITDEPTH = Integer.parseInt(args[4]);
+		if(args.length == 0) {
+			return;
 		}
 		
-		Boolean preplace = false;
-		int preplacex = 0;
-		int preplacey = 0;
-		
-		if(args.length > 6) {
-			preplace = true;
-			preplacex = Integer.parseInt(args[5]);
-			preplacey = Integer.parseInt(args[6]);
+		if(args.length > 0) {
+			try {
+			File inputfile = new File(args[0]);
+		    sourceImage = ImageIO.read(inputfile);
+			} catch (Exception e) {}
 		}
+		
+		if(args.length > 3) {
+			REDBITDEPTH = Integer.parseInt(args[1]);
+			GREENBITDEPTH = Integer.parseInt(args[2]);
+			BLUEBITDEPTH = Integer.parseInt(args[3]);
+		}
+		
+		width = sourceImage.getWidth();
+		height = sourceImage.getHeight();
 		
 		System.out.println("Creating Image with dimensions: " + width + " x " + height);
 		System.out.println("With " + REDBITDEPTH + " " + GREENBITDEPTH + " " + BLUEBITDEPTH + " bit colours");
@@ -71,7 +72,7 @@ public class Main {
 		for(int r = 0; r < 256; r += redinc) {
 			for(int g = 0; g < 256; g += greeninc) {
 				for(int b = 0; b < 256; b += blueinc) {
-					colorSource[sourceColors++] = (new SuperColor(r, g, b));
+					colorSource[sourceColors++] = new SuperColor(r, g, b);
 				}
 			}
 		}
@@ -79,77 +80,32 @@ public class Main {
 		long aftercolortime = System.currentTimeMillis();
 		
 		
-		SuperColor poppedColour;
-		int preplaced = 0;
+		//generate colors of original picture
 		
-		if(preplace) {
-			for(int ix = 0; ix < preplacex; ix++) {
-				for(int iy = 0; iy < preplacey; iy++) {
-					preplaced++;
-					poppedColour = getNextColor();
-					setPixil((ix*2 + 1)*width/(2*preplacex), (iy*2 + 1)*height/(2*preplacey), poppedColour);
-					edgeColors.add(poppedColour);
-				}
+		for(int x = 0; x < width; x++) {
+			for(int y = 0; y < height; y++) {
+				int rgb = sourceImage.getRGB(x, y);
+				int red = (rgb & 0x00FF0000) >> 16;
+				int green = (rgb & 0x0000FF00) >> 8;
+				int blue = rgb & 0x000000FF;
+				edgeColors.add(new SuperColor(red, green, blue, x, y));
 			}
-		} else {
-			//place first pixil
-			preplaced++;
-			poppedColour = getNextColor();
-			setPixil(width/2, height/2, poppedColour);
-			edgeColors.add(poppedColour);
 		}
-					
-		for(int counter = preplaced; counter < topcount; counter++) {
+		
+		System.out.println("Source Image pixils: " + edgeColors.size);
+		
+		//place first pixil
+		SuperColor poppedColour;
+		
+		for(int counter = 0; counter < topcount; counter++) {
 			poppedColour = getNextColor();
+
+			SuperColor closestNeighbour = edgeColors.findNearest(poppedColour, null);
+									
+			setPixil(closestNeighbour, poppedColour);
 			
-			boolean set = false;
+			closestNeighbour.destruct();
 			
-			while(!set) {
-				
-				SuperColor closestNeighbour = edgeColors.findNearest(poppedColour, null);
-								
-				int minx = closestNeighbour.x - 1;
-				int maxx = closestNeighbour.x + 1;
-				int miny = closestNeighbour.y - 1;
-				int maxy = closestNeighbour.y + 1;
-				
-				minx = minx < 0 ? 0 : minx;
-				maxx = maxx >= width ? width-1 : maxx;
-				miny = miny < 0 ? 0 : miny;
-				maxy = maxy >= height ? height-1 : maxy;
-				
-				int numopen = 0;
-				int[][] open = new int[8][2];
-				
-				for(int x = minx; x <= maxx; x++) {
-					for(int y = miny; y <= maxy; y++) {
-						if(getPixil(x, y) == null) {
-							open[numopen][0] = x;
-							open[numopen][1] = y;
-							numopen++;
-							set = true;
-						}
-					}
-				}
-				
-				
-				
-				
-				if(!set) {
-					closestNeighbour.destruct();
-					// destructed++;
-					// if(destructed > 1000) {
-						// cleanQuad();
-						// destructed = 0;
-					// }
-					
-				} else {
-					int placement = (int) (Math.random()*numopen);
-					
-					setPixil(open[placement][0], open[placement][1], poppedColour);
-					edgeColors.add(poppedColour);
-				}
-			}
 			
 			if(counter % (topcount / 100) == 0) {
 				System.out.print("\r" + (counter / (topcount / 100)) + "%\t" + (System.currentTimeMillis() - aftercolortime)/1000 + "s");
@@ -169,6 +125,10 @@ public class Main {
 		
 	}
 	
+	private void setPixil(SuperColor source, SuperColor finisher) {
+		pixilValues[source.x][source.y] = finisher;
+	}
+	
 	private SuperColor getNextColor() {
 		int indexToGet = nextColor + ((int) (Math.random() * (colorSource.length - nextColor)));
 		
@@ -180,16 +140,6 @@ public class Main {
 		
 		return result;
 	}
-	
-	// private void cleanQuad() {
-		
-		// Quadtree allColors = new Quadtree(rq, gq, bq, rq/2, gq/2, bq/2, null);
-		
-		// edgeColors.GetAllColors(allColors);
-		
-		// edgeColors = allColors;
-	
-	// }
 	
 	private void render(String label) {
 		BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
@@ -215,12 +165,6 @@ public class Main {
 		} catch (IOException e) {
 		    e.printStackTrace();
 		}
-	}
-		
-	private void setPixil(int x, int y, SuperColor sc) {
-		sc.x = x;
-		sc.y = y;
-		pixilValues[x][y] = sc;
 	}
 	
 	private SuperColor getPixil(int x, int y) {

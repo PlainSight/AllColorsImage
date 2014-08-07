@@ -1,5 +1,6 @@
 
 import java.util.Arrays;
+import java.util.ArrayList;
 
 
 /* This class is made to ease the task of finding targets
@@ -29,6 +30,7 @@ public class Quadtree
 	int maxz;
 	
 	SuperColor[] colors;
+	ArrayList<SuperColor> manyColors = null;
 	int size;
 	
 	private Quadtree parent;
@@ -44,7 +46,11 @@ public class Quadtree
 		midz = mz;
 		parent = p;
 		
-		colors = new SuperColor[maxsize];
+		if(xlen < 5) {
+			manyColors = new ArrayList<SuperColor>();
+		} else {
+			colors = new SuperColor[maxsize];
+		}
 		
 		minx = midx - xlen/2;
 		maxx = midx + xlen/2;
@@ -54,31 +60,6 @@ public class Quadtree
 		
 		minz = midz - zlen/2;
 		maxz = midz + zlen/2;
-	}
-	
-	public void GetAllColors(Quadtree allColors) {
-		
-		if(size == 0) {
-			return;
-		}
-		
-		for(int i = 0; i < maxsize; i++) {
-			if(colors[i] != null) {
-				if(colors[i].isAlive) {
-					allColors.add(colors[i]);
-				}
-			} else {
-				break;
-			}
-		}
-		
-		if(children[0] == null) {
-			return;
-		}
-		
-		for(int i = 0; i < 8; i++) {
-			children[i].GetAllColors(allColors);
-		}
 	}
 	
 	private void split()
@@ -107,58 +88,79 @@ public class Quadtree
 		}
 
 		//clean up node
-		colors = new SuperColor[maxsize];
+		if(xlen < 5) {
+			manyColors = new ArrayList<SuperColor>();
+		} else {
+			colors = new SuperColor[maxsize];
+		}
 	}
 		
 	public void add(SuperColor u)
 	{
 		//if there are children then add to child
+		if(manyColors != null) {
 		
-		if(children[0] != null)
-		{
-			putInChild(u);
+			manyColors.add(u);
+			u.whereIAm = this;
+		
 		} else {
-			if(size < colors.length)
+		
+			if(children[0] != null)
 			{
-				colors[size] = u;
-				u.whereIAm = this;
-			} else {
-				split();
 				putInChild(u);
+			} else {
+				if(size < colors.length)
+				{
+					colors[size] = u;
+					u.whereIAm = this;
+				} else {
+					split();
+					putInChild(u);
+				}
 			}
 		}
 		size++;
 	}
 	
-	private boolean putInChild(SuperColor u)
+	private void putInChild(SuperColor u)
 	{
 		for(int c = 0; c < 8; c++)
 		{
 			if(children[c].hasUnitInside(u))
 			{
 				children[c].add(u);
-				return true;
 			}
 		}
-		
-		//means the unit is not longer within the confines of the parent bounds
-		return false;
+	}
+	
+	private SuperColor[] getColors() {
+		if(manyColors != null) {
+			SuperColor[] resultcolors = new SuperColor[manyColors.size()];
+			manyColors.toArray(resultcolors);
+			return resultcolors;
+		} else {
+			return colors;
+		}
 	}
 	
 	public void remove(SuperColor u)
 	{
-		int index = 0;
-		for(int i = 0; i < size; i++)
-		{
-			if(colors[i] == u)
+		if(manyColors == null) {
+			int index = 0;
+			for(int i = 0; i < size; i++)
 			{
-				index = i;
-				break;
+				if(colors[i] == u)
+				{
+					index = i;
+					break;
+				}
 			}
+			
+			colors[index] = colors[size-1];
+			colors[size-1] = null;
+		} else {
+			manyColors.remove(u);
 		}
-	
-		colors[index] = colors[size-1];
-		colors[size-1] = null;
 		
 		for(Quadtree t = this; t != null; t = t.parent)
 		{
@@ -166,8 +168,8 @@ public class Quadtree
 			if(t.size < maxsize/2 && t.children[0] != null)
 			{
 				//combine child nodes
-				t.colors = concatAll(t.children[0].size, t.children[0].colors, t.children[1].colors, t.children[2].colors, t.children[3].colors,
-						t.children[4].colors, t.children[5].colors, t.children[6].colors, t.children[7].colors);
+				t.colors = concatAll(t.children[0].size, t.children[0].getColors(), t.children[1].getColors(), t.children[2].getColors(), t.children[3].getColors(),
+						t.children[4].getColors(), t.children[5].getColors(), t.children[6].getColors(), t.children[7].getColors());
 				t.children = new Quadtree[8];
 
 				for(int i = 0; i < t.size; i++)
@@ -217,43 +219,87 @@ public class Quadtree
 	
 	public SuperColor findNearest(SuperColor u, SuperColor nearest)
 	{
-		if((nearest != null && !shouldVisit(u, nearest)) || size == 0) {
-			return nearest;
-		}
-		
-		if(children[0] == null)
-		{
-			for(int i = 0; i < size; i++)
+		if(manyColors == null) {
+	
+			if((nearest != null && !shouldVisit(u, nearest)) || size == 0) {
+				return nearest;
+			}
+			
+			if(children[0] == null)
 			{
-				if(nearest == null && colors[i].isAlive)
+				for(int i = 0; i < size; i++)
 				{
-					nearest = colors[i];
-				} else {
-					if(colors[i].isAlive && SuperColor.getDist(u, colors[i]) < SuperColor.getDist(u, nearest))
+					if(nearest == null && colors[i].isAlive)
 					{
 						nearest = colors[i];
+					} else {
+						if(colors[i].isAlive && SuperColor.getDist(u, colors[i]) < SuperColor.getDist(u, nearest))
+						{
+							nearest = colors[i];
+						}
 					}
 				}
-			}
-			return nearest;
-		} else {
-			for(int c = 0; c < 8; c++)
-			{
-				SuperColor temp = children[c].findNearest(u, nearest);
-				
-				if(temp == null) continue;
-				
-				if(nearest == null)
+				return nearest;
+			} else {
+				for(int c = 0; c < 8; c++)
 				{
-					nearest = temp;
-				} else {
-					if(SuperColor.getDist(u, temp) < SuperColor.getDist(u, nearest))
+					SuperColor temp = children[c].findNearest(u, nearest);
+					
+					if(temp == null) continue;
+					
+					if(nearest == null)
 					{
 						nearest = temp;
+					} else {
+						if(SuperColor.getDist(u, temp) < SuperColor.getDist(u, nearest))
+						{
+							nearest = temp;
+						}
 					}
 				}
+				return nearest;
 			}
-			return nearest;
+		
+		} else {
+		
+			if((nearest != null && !shouldVisit(u, nearest)) || size == 0) {
+				return nearest;
+			}
+			
+			if(children[0] == null)
+			{
+				for(int i = 0; i < size; i++)
+				{
+					if(nearest == null && manyColors.get(i).isAlive)
+					{
+						nearest = manyColors.get(i);
+					} else {
+						if(manyColors.get(i).isAlive && SuperColor.getDist(u, manyColors.get(i)) < SuperColor.getDist(u, nearest))
+						{
+							nearest = manyColors.get(i);
+						}
+					}
+				}
+				return nearest;
+			} else {
+				for(int c = 0; c < 8; c++)
+				{
+					SuperColor temp = children[c].findNearest(u, nearest);
+					
+					if(temp == null) continue;
+					
+					if(nearest == null)
+					{
+						nearest = temp;
+					} else {
+						if(SuperColor.getDist(u, temp) < SuperColor.getDist(u, nearest))
+						{
+							nearest = temp;
+						}
+					}
+				}
+				return nearest;
+			}
 		}
 	}
 }
